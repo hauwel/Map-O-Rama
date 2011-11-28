@@ -1,1 +1,5 @@
 Simple mapper.
+
+Requrements:
+- python 2.6
+- PyQt4 (PyQt-Py2.6-x86-gpl-4.8.6)
