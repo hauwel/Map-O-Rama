@@ -32,9 +32,10 @@ class OSMMap(QtGui.QWidget):
 
         self.path = 'tile.openstreetmap.org'
         self.path_pre = ['a', 'b', 'c']
+    
         self.net_manager = QtNetwork.QNetworkAccessManager(self)
         self.net_manager.setProxy(QtNetwork.QNetworkProxy(
-                        QtNetwork.QNetworkProxy.HttpProxy, 'localhost', 3128))
+                        QtNetwork.QNetworkProxy.HttpProxy, '192.168.50.12', 8080))
         self.disk_cache = QtNetwork.QNetworkDiskCache(self)
         self.disk_cache.setCacheDirectory('osm_cache')
         self.net_manager.setCache(self.disk_cache)
@@ -121,24 +122,12 @@ class OSMMap(QtGui.QWidget):
                                  self.tile_res, self.tile_res))
 
     def coords2tile(self, lat, lon, zoom):
-        return self.mercator(lat, lon, zoom)
-        return self.gall_peters(lat, lon, zoom)
-#        maxtile = (1 << zoom)
-#        tx = float((lon + 180) / 360 * maxtile)
-#        ty = maxtile * ((1 - (math.log(math.tan(math.radians(lat)) +
-#                                1 / math.cos(math.radians(lat))))/math.pi)/2)
-#        return (tx, ty)
-
-    def mercator(self, lat, lon, zoom):
         maxtile = (1 << zoom)
         tx = float((lon + 180) / 360 * maxtile)
         ty = maxtile * ((1 - (math.log(math.tan(math.radians(lat)) +
                                 1 / math.cos(math.radians(lat))))/math.pi)/2)
         return (tx, ty)
-    
-    def gall_peters(self, lat, lon, zoom):
-        pass
-    
+
     def paintEvent(self, event):
         p = QtGui.QPainter()
         p.begin(self)
