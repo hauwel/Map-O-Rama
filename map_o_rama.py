@@ -42,15 +42,16 @@ class OSMMap(QtGui.QWidget):
     def initialize(self):
         ct_x, ct_y = self.coords2tile(self.latitude, self.longitude, self.zoom)
         tx, ty = int(ct_x), int(ct_y)
-        #center tile offset
+        # center tile offset
         ctx_offset = math.modf(ct_x)[0] * self.tile_res
         cty_offset = math.modf(ct_y)[0] * self.tile_res
-        #center tile top left corner
+        # center tile top left corner
         cttlx = self.width() / float(2) - ctx_offset
         cttly = self.height() / float(2) - cty_offset
-        #window top left tiles delta x and y
+        # window top left tiles delta x and y
         wtltdx = cttlx / self.tile_res
         wtltdy = cttly / self.tile_res
+        # top left tile offset in pixels
         self.x_offset = int((1 - math.modf(wtltdx)[0]) * self.tile_res)
         self.y_offset = int((1 - math.modf(wtltdy)[0]) * self.tile_res)
 
