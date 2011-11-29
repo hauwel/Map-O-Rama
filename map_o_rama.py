@@ -11,13 +11,12 @@ class OSMMap(QtGui.QWidget):
         super(OSMMap, self).__init__(parent)
         self.resize(width, height)
 
-        self.zoom = 13
-#        self.latitude = 56.3217086791992 
-#        self.longitude = 44.0330696105957
-        self.latitude = 56.329744
-        self.longitude = 43.959904
-        self.visible_tiles = tuple()
-        self.visible_rect = tuple()
+        self.zoom = 15
+        self.latitude = 56.3217086791992 
+        self.longitude = 44.0330696105957
+#        self.latitude = 56.329744
+#        self.longitude = 43.959904
+        self.visible_rect = QtCore.QRect()
         self.tiles = dict()
         self.x_offset = None
         self.y_offset = None
@@ -30,14 +29,14 @@ class OSMMap(QtGui.QWidget):
     
         self.net_manager = QtNetwork.QNetworkAccessManager(self)
         self.net_manager.setProxy(QtNetwork.QNetworkProxy(
-                        QtNetwork.QNetworkProxy.HttpProxy, '192.168.50.12', 8080))
+                        QtNetwork.QNetworkProxy.HttpProxy, 'localhost', 3128))
         self.disk_cache = QtNetwork.QNetworkDiskCache(self)
         self.disk_cache.setCacheDirectory('osm_cache')
         self.net_manager.setCache(self.disk_cache)
         self.net_manager.finished.connect(self.process_reply)
 
         self.initialize()
-        self.download()
+
     
     def initialize(self):
         ct_x, ct_y = self.coords2tile(self.latitude, self.longitude, self.zoom)
@@ -59,15 +58,16 @@ class OSMMap(QtGui.QWidget):
         max_tiles_y = int(math.ceil(self.height()/float(self.tile_res))) + 1
         leftmost = tx - int(math.ceil(wtltdx))
         topmost = ty - int(math.ceil(wtltdy))
-        self.visible_rect = tuple([leftmost, topmost,
-                                   max_tiles_x, max_tiles_y])
-        self.update(QtCore.QRect(0, 0, self.width(), self.height()))
+        self.visible_rect = QtCore.QRect(leftmost, topmost,
+                                   max_tiles_x, max_tiles_y)
+        self.download()
+        self.update()
 
     def tiles_to_load(self):
-        for x in xrange(self.visible_rect[2]):
-            for y in xrange(self.visible_rect[3]):
-                tx = x + self.visible_rect[0]
-                ty = y + self.visible_rect[1]
+        for x in xrange(self.visible_rect.width()):
+            for y in xrange(self.visible_rect.height()):
+                tx = x + self.visible_rect.left()
+                ty = y + self.visible_rect.top()
                 px = x * self.tile_res - self.x_offset
                 py = y * self.tile_res - self.y_offset
                 yield (tx, ty, self.zoom, px, py)
@@ -88,6 +88,7 @@ class OSMMap(QtGui.QWidget):
                 yield 'http://' + self.path_pre[i] + '.' + self.path
 
     def download(self):
+        self.tiles = dict()
         for tile in self.tiles_to_load():
             tile_url = self.net_prefix().next() + '/%d/%d/%d.png' %\
                                     (self.zoom, tile[0], tile[1])
@@ -124,12 +125,12 @@ class OSMMap(QtGui.QWidget):
                                 1 / math.cos(math.radians(lat))))/math.pi)/2)
         return (tx, ty)
 
-    def paintEvent(self, event):
+    def paintEvent(self, event): 
         p = QtGui.QPainter()
         p.begin(self)
         self.render(p, event.rect())
         p.end()
-
+    
     def resizeEvent(self, event):
         self.initialize()
 
@@ -139,9 +140,9 @@ class MapWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MapWindow, self).__init__(None)
         self.resize(256*4, 256*3)
-#        self.resize(800, 600)
-        osmmap = OSMMap(self.width(), self.height(), self)
-        osmmap.show()
+        self.osmmap = OSMMap(self.width(), self.height(), self)
+        self.setCentralWidget(self.osmmap)
+        self.osmmap.show()
 
 
 if __name__ == '__main__':
