@@ -5,6 +5,7 @@ from PyQt4 import QtCore
 from PyQt4 import QtGui
 from PyQt4 import QtNetwork
 
+
 class OSMMap(QtGui.QWidget):
 
     def __init__(self, width=800, height=600, parent=None):
@@ -12,6 +13,8 @@ class OSMMap(QtGui.QWidget):
         self.resize(width, height)
 
         self.zoom = 15
+        self.max_zoom = 18
+        self.min_zoom = 0
         self.latitude = 56.3217086791992 
         self.longitude = 44.0330696105957
 #        self.latitude = 56.329744
@@ -27,18 +30,18 @@ class OSMMap(QtGui.QWidget):
         self.path = 'tile.openstreetmap.org'
         self.path_pre = ['a', 'b', 'c']
     
+        self.disk_cache = QtNetwork.QNetworkDiskCache(self)
+        self.disk_cache.setCacheDirectory('osm_cache')
+        
         self.net_manager = QtNetwork.QNetworkAccessManager(self)
         self.net_manager.setProxy(QtNetwork.QNetworkProxy(
                         QtNetwork.QNetworkProxy.HttpProxy, 'localhost', 3128))
-        self.disk_cache = QtNetwork.QNetworkDiskCache(self)
-        self.disk_cache.setCacheDirectory('osm_cache')
         self.net_manager.setCache(self.disk_cache)
         self.net_manager.finished.connect(self.process_reply)
 
-        self.initialize()
+        self.recalculate_offsets()
 
-    
-    def initialize(self):
+    def recalculate_offsets(self):
         ct_x, ct_y = self.coords2tile(self.latitude, self.longitude, self.zoom)
         tx, ty = int(ct_x), int(ct_y)
         # center tile offset
@@ -81,17 +84,30 @@ class OSMMap(QtGui.QWidget):
                 #p.drawRect(tile_rect)
         p.drawLine(0, self.height() / 2, self.width(), self.height() / 2)
         p.drawLine(self.width() / 2, 0, self.width() / 2, self.height())
+    
+    def slip(self, delta):
+        ct_x, ct_y = self.coords2tile(self.latitude, self.longitude, self.zoom)
+        ct_x += delta[0] / self.tile_res
+        ct_y += delta[1] / self.tile_res
+        self.latitude, self.longitude = self.tile2coords(ct_x, ct_y, self.zoom)
+        self.recalculate_offsets()
+        
+    def mag(self, delta):
+        if self.zoom >= self.max_zoom or self.zoom <= self.min_zoom:
+            return
+        self.zoom += delta
+        self.recalculate_offsets()
 
-    def net_prefix(self):
+    def generate_url(self):
         while True:
             for i in xrange(len(self.path_pre)):
-                yield 'http://' + self.path_pre[i] + '.' + self.path
+                yield 'http://' + self.path_pre[i] + '.'\
+                      + self.path + '/%d/%d/%d.png'
 
     def download(self):
-        self.tiles = dict()
+        self.tiles.clear()
         for tile in self.tiles_to_load():
-            tile_url = self.net_prefix().next() + '/%d/%d/%d.png' %\
-                                    (self.zoom, tile[0], tile[1])
+            tile_url = self.generate_url().next() % (self.zoom, tile[0], tile[1])
             tile_request = QtNetwork.QNetworkRequest(QtCore.QUrl(tile_url))
             tile_request.setAttribute(QtNetwork.QNetworkRequest.User,
                                       list(tile))
@@ -101,14 +117,14 @@ class OSMMap(QtGui.QWidget):
     def process_reply(self, reply):
         img = QtGui.QImage()
         qv = reply.request().attribute(QtNetwork.QNetworkRequest.User)
-        list = []
+        ls = []
         for num in qv.toList():
             val, not_err = num.toInt()
             if not_err:
-                list.append(val)
+                ls.append(val)
             else:
                 print "QVariant.toInt() Error"
-        tile = tuple(list)
+        tile = tuple(ls)
         if not reply.error():
             if img.load(reply, None):
                 self.tiles[tile] = QtGui.QPixmap.fromImage(img)
@@ -119,20 +135,29 @@ class OSMMap(QtGui.QWidget):
                                  self.tile_res, self.tile_res))
 
     def coords2tile(self, lat, lon, zoom):
-        maxtile = (1 << zoom)
+        maxtile = 1 << zoom
         tx = float((lon + 180) / 360 * maxtile)
         ty = maxtile * ((1 - (math.log(math.tan(math.radians(lat)) +
                                 1 / math.cos(math.radians(lat))))/math.pi)/2)
         return (tx, ty)
 
+    def tile2coords(self, tx, ty, zoom):
+        maxtile = 1 << zoom
+        lon = tx / maxtile * 360.0 - 180.0
+        lat = math.atan(math.sinh(math.pi * (1 - 2 * ty / maxtile)))\
+              * 180 / math.pi 
+        return (lat, lon)
+
     def paintEvent(self, event): 
         p = QtGui.QPainter()
         p.begin(self)
         self.render(p, event.rect())
+        p.drawText(self.rect(), QtCore.Qt.AlignBottom | QtCore.Qt.TextWordWrap,
+                   'lat: %f   lon:%f' % (self.latitude, self.longitude))
         p.end()
     
     def resizeEvent(self, event):
-        self.initialize()
+        self.recalculate_offsets()
 
 
 class MapWindow(QtGui.QMainWindow):
@@ -143,6 +168,20 @@ class MapWindow(QtGui.QMainWindow):
         self.osmmap = OSMMap(self.width(), self.height(), self)
         self.setCentralWidget(self.osmmap)
         self.osmmap.show()
+
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Up:
+            self.osmmap.slip((0, -20.0,))
+        elif event.key() == QtCore.Qt.Key_Down:
+            self.osmmap.slip((0, 20.0,))
+        elif event.key() == QtCore.Qt.Key_Left:
+            self.osmmap.slip((-20.0, 0,))
+        elif event.key() == QtCore.Qt.Key_Right:
+            self.osmmap.slip((20.0, 0,))
+        elif event.key() == QtCore.Qt.Key_Plus:
+            self.osmmap.mag(1)
+        elif event.key() == QtCore.Qt.Key_Minus:
+            self.osmmap.mag(-1)
 
 
 if __name__ == '__main__':
