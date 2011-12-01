@@ -93,7 +93,8 @@ class OSMMap(QtGui.QWidget):
         self.recalculate_offsets()
         
     def mag(self, delta):
-        if self.zoom >= self.max_zoom or self.zoom <= self.min_zoom:
+        if self.zoom >= self.max_zoom and delta > 0\
+            or (self.zoom <= self.min_zoom) and delta <0:
             return
         self.zoom += delta
         self.recalculate_offsets()
@@ -153,11 +154,26 @@ class OSMMap(QtGui.QWidget):
         p.begin(self)
         self.render(p, event.rect())
         p.drawText(self.rect(), QtCore.Qt.AlignBottom | QtCore.Qt.TextWordWrap,
-                   'lat: %f   lon:%f' % (self.latitude, self.longitude))
+                   'lat: %f   lon:%f  zoom:%d' %
+                   (self.latitude, self.longitude, self.zoom))
         p.end()
     
     def resizeEvent(self, event):
         self.recalculate_offsets()
+
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Up:
+            self.slip((0, -20.0,))
+        elif event.key() == QtCore.Qt.Key_Down:
+            self.slip((0, 20.0,))
+        elif event.key() == QtCore.Qt.Key_Left:
+            self.slip((-20.0, 0,))
+        elif event.key() == QtCore.Qt.Key_Right:
+            self.slip((20.0, 0,))
+        elif event.key() == QtCore.Qt.Key_Plus:
+            self.mag(1)
+        elif event.key() == QtCore.Qt.Key_Minus:
+            self.mag(-1)
 
 
 class MapWindow(QtGui.QMainWindow):
@@ -167,21 +183,8 @@ class MapWindow(QtGui.QMainWindow):
         self.resize(256*4, 256*3)
         self.osmmap = OSMMap(self.width(), self.height(), self)
         self.setCentralWidget(self.osmmap)
+        self.osmmap.setFocus()
         self.osmmap.show()
-
-    def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Up:
-            self.osmmap.slip((0, -20.0,))
-        elif event.key() == QtCore.Qt.Key_Down:
-            self.osmmap.slip((0, 20.0,))
-        elif event.key() == QtCore.Qt.Key_Left:
-            self.osmmap.slip((-20.0, 0,))
-        elif event.key() == QtCore.Qt.Key_Right:
-            self.osmmap.slip((20.0, 0,))
-        elif event.key() == QtCore.Qt.Key_Plus:
-            self.osmmap.mag(1)
-        elif event.key() == QtCore.Qt.Key_Minus:
-            self.osmmap.mag(-1)
 
 
 if __name__ == '__main__':
