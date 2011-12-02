@@ -6,10 +6,10 @@ from PyQt4 import QtGui
 from PyQt4 import QtNetwork
 
 
-class OSMMap(QtGui.QWidget):
+class MapWidget(QtGui.QWidget):
 
     def __init__(self, width=800, height=600, parent=None):
-        super(OSMMap, self).__init__(parent)
+        super(MapWidget, self).__init__(parent)
         self.resize(width, height)
 
         self.zoom = 15
@@ -27,9 +27,6 @@ class OSMMap(QtGui.QWidget):
         self.tile_res = 256
         self.no_pixmap = QtGui.QPixmap(self.tile_res, self.tile_res).fill()
 
-        self.path = 'tile.openstreetmap.org'
-        self.path_pre = ['a', 'b', 'c']
-    
         self.disk_cache = QtNetwork.QNetworkDiskCache(self)
         self.disk_cache.setCacheDirectory('osm_cache')
         
@@ -64,7 +61,6 @@ class OSMMap(QtGui.QWidget):
         self.visible_rect = QtCore.QRect(leftmost, topmost,
                                    max_tiles_x, max_tiles_y)
         self.download()
-        self.update()
 
     def tiles_to_load(self):
         for x in xrange(self.visible_rect.width()):
@@ -100,21 +96,24 @@ class OSMMap(QtGui.QWidget):
         self.recalculate_offsets()
 
     def generate_url(self):
+        path = 'tile.openstreetmap.org'
+        path_pre = ['a', 'b', 'c']
         while True:
-            for i in xrange(len(self.path_pre)):
+            for i in xrange(len(path_pre)):
                 yield 'http://' + self.path_pre[i] + '.'\
-                      + self.path + '/%d/%d/%d.png'
+                      + path + '/%(tx)d/%(ty)d/%(tz)d.png'
 
     def download(self):
         self.tiles.clear()
         for tile in self.tiles_to_load():
-            tile_url = self.generate_url().next() % (self.zoom, tile[0], tile[1])
+            values = dict(tx = tile[0], ty = tile[1], tz = self.zoom)
+            tile_url = self.generate_url().next() % values
             tile_request = QtNetwork.QNetworkRequest(QtCore.QUrl(tile_url))
             tile_request.setAttribute(QtNetwork.QNetworkRequest.User,
                                       list(tile))
             tile_request.setRawHeader('User-Agent', 'Map-O-Rama (PyQt) 1.0')
             self.net_manager.get(tile_request)
-    
+
     def process_reply(self, reply):
         img = QtGui.QImage()
         qv = reply.request().attribute(QtNetwork.QNetworkRequest.User)
@@ -154,7 +153,7 @@ class OSMMap(QtGui.QWidget):
         p.begin(self)
         self.render(p, event.rect())
         p.drawText(self.rect(), QtCore.Qt.AlignBottom | QtCore.Qt.TextWordWrap,
-                   'lat: %f   lon:%f  zoom:%d' %
+                   'lat:%f   lon:%f  zoom:%d' %
                    (self.latitude, self.longitude, self.zoom))
         p.end()
     
@@ -164,16 +163,34 @@ class OSMMap(QtGui.QWidget):
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Up:
             self.slip((0, -20.0,))
-        elif event.key() == QtCore.Qt.Key_Down:
+        if event.key() == QtCore.Qt.Key_Down:
             self.slip((0, 20.0,))
-        elif event.key() == QtCore.Qt.Key_Left:
+        if event.key() == QtCore.Qt.Key_Left:
             self.slip((-20.0, 0,))
-        elif event.key() == QtCore.Qt.Key_Right:
+        if event.key() == QtCore.Qt.Key_Right:
             self.slip((20.0, 0,))
-        elif event.key() == QtCore.Qt.Key_Plus:
+        if event.key() == QtCore.Qt.Key_Plus:
             self.mag(1)
-        elif event.key() == QtCore.Qt.Key_Minus:
+        if event.key() == QtCore.Qt.Key_Minus:
             self.mag(-1)
+
+
+
+class OSMMap(MapWidget):
+    
+    def __init__(self, width=800, height=600, parent=None):
+        super(GoogleMap, self).__init__(width, height, parent)
+
+
+class GoogleMap(MapWidget):
+    
+    def __init__(self, width=800, height=600, parent=None):
+        super(GoogleMap, self).__init__(width, height, parent)
+    
+    def generate_url(self):
+        path = 'http://khm0.google.com/kh/v=100&x=%(tx)d&y=%(ty)d&z=%(tz)d'
+        while True:
+            yield path
 
 
 class MapWindow(QtGui.QMainWindow):
@@ -181,10 +198,14 @@ class MapWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MapWindow, self).__init__(None)
         self.resize(256*4, 256*3)
-        self.osmmap = OSMMap(self.width(), self.height(), self)
-        self.setCentralWidget(self.osmmap)
-        self.osmmap.setFocus()
-        self.osmmap.show()
+#        self.osmmap = OSMMap(self.width(), self.height(), self)
+#        self.setCentralWidget(self.osmmap)
+#        self.osmmap.setFocus()
+#        self.osmmap.show()
+        self.gmap = GoogleMap(self.width(), self.height(), self)
+        self.setCentralWidget(self.gmap)
+        self.gmap.setFocus()
+        self.gmap.show()
 
 
 if __name__ == '__main__':
